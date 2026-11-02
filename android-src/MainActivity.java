@@ -13,12 +13,13 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        WebView webView = getBridge().getWebView();
+        // ═══ WebView-কে final করা হলো যাতে Inner Class থেকে অ্যাক্সেস করা যায় ═══
+        final WebView webView = getBridge().getWebView();
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
 
-        CookieManager cookieManager = CookieManager.getInstance();
+        final CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(webView, true);
 
@@ -58,13 +59,15 @@ public class MainActivity extends BridgeActivity {
                 cm.setCookie("https://www." + domain, formattedCookie);
                 cm.setCookie("https://." + domain, formattedCookie);
 
+                // ═══ এখানেও final ভেরিয়েবল ব্যবহার করা হলো ═══
+                final String finalLoadUrl = loadUrl;
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        webView.loadUrl(loadUrl);
+                        webView.loadUrl(finalLoadUrl);
                     }
                 });
             }
         }, "CookieInterface");
     }
-          }
+}
