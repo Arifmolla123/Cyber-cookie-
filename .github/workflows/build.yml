@@ -1,0 +1,61 @@
+# language: YAML, file: .github/workflows/build.yml
+name: Build Cyber Cookie Pro APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - name: Install NPM dependencies
+        run: npm install
+      - name: Add Android Platform
+        run: npx cap add android
+      
+      - name: Generate App Icons
+        run: npx @capacitor/assets generate --android
+        
+      - name: Overwrite MainActivity.java
+        run: |
+          mkdir -p android/app/src/main/java/com/cybercookie/pro/
+          cp android-src/MainActivity.java android/app/src/main/java/com/cybercookie/pro/MainActivity.java
+          
+      - name: Set Splash Screen (First Page)
+        run: |
+          # index.html এর বদলে প্রথমে splash.html ওপেন হবে এমন সেট করা
+          sed -i 's/"webDir": "www"/"webDir": "www"/' capacitor.config.json
+          
+      - name: Sync Web Code
+        run: npx cap sync
+        
+      - name: Change Main Activity Splash
+        run: |
+          # ক্যাপাসিটরের মেইন ফাইলটি এডিট করে splash.html কে ডিফল্ট পেজ বানানো
+          sed -i 's/index.html/splash.html/g' android/app/src/main/assets/capacitor.config.json || true
+          sed -i 's/index.html/splash.html/g' android/app/src/main/assets/public/index.html || true
+          
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+          
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CyberCookiePro-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
